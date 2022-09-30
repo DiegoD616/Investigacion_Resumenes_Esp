@@ -3,50 +3,55 @@ import sumy.summarizers.lsa       as LsaSummarizer
 import sumy.parsers.plaintext     as PlaintTextParser
 import sumy.nlp.tokenizers        as Tokenizer
 import pandas                     as pd
+import numpy                      as np
 import textwrap
 import nltk
-nltk.download('punkt')
+import operator
 from rouge_score import rouge_scorer
+from functools   import reduce
+
+nltk.download('punkt')
+
+AMOUNT_LINES_PER_SUMMARY = 5
+AMOUNT_SUMMARIES = 30
+SUMMARIZERS = [
+    TextRankSummarizer.TextRankSummarizer(),
+    LsaSummarizer.LsaSummarizer()
+]
+
+def makeSummary(doc2summarize, summarizer, language):
+    parser = PlaintTextParser.PlaintextParser.from_string(
+        doc2summarize,
+        Tokenizer.Tokenizer(language)
+    )
+    summaryOBJ = summarizer(parser.document, sentences_count=AMOUNT_LINES_PER_SUMMARY)
+    return reduce(operator.add, map(lambda x: str(x)+"\n", summaryOBJ), "")
 
 def main():
-    dataFrameEnglish = pd.read_csv("./datos/test.csv")
+    dataFrame = pd.read_csv("./datos/test.csv")
+    language  = "english"
 
-    entry = dataFrameEnglish.iloc[0]
-    doc   = entry["article"]
-    humanSummary = entry["highlights"]
-
-    ## Prueba text rank
-    summarizer = TextRankSummarizer.TextRankSummarizer()
-    parser     = PlaintTextParser.PlaintextParser.from_string(
-        doc,
-        Tokenizer.Tokenizer("english")
+    rng = np.random.default_rng()
+    amount_news   = dataFrame.shape[0]
+    selected_news = rng.integers(
+        amount_news, size = (AMOUNT_SUMMARIES,)
     )
-    summary = summarizer(parser.document, sentences_count=5)
-    textRankSummary = ""
-    for sentence in summary: 
-        s = str(sentence)
-        textRankSummary += s
+    entry = dataFrame.iloc[selected_news]
+    docs  = entry["article"]
+    humanSummaries = entry["highlights"]
 
-    ## Prueba lsa
-    summarizer = LsaSummarizer.LsaSummarizer()
-    parser     = PlaintTextParser.PlaintextParser.from_string(
-        doc,
-        Tokenizer.Tokenizer("english")
-    )
-    summary = summarizer(parser.document, sentences_count=5)
-    lsaSummary = ""
-    for sentence in summary: 
-        s = str(sentence)
-        lsaSummary += s
-
+    for summarizer in SUMMARIZERS:
+        for doc in docs:
+            makeSummary(doc, summarizer, language)
+    
     #Rouge
-    scorer = rouge_scorer.RougeScorer(['rouge1', 'rougeL'])
+    #scorer = rouge_scorer.RougeScorer(['rouge1', 'rougeL'])
 
-    scores = scorer.score(humanSummary, textRankSummary)
-    print(scores)
+    #scores = scorer.score(humanSummary, textRankSummary)
+    #print(scores)
 
-    scores = scorer.score(humanSummary, lsaSummary)
-    print(scores)
-    print("*"*30,textwrap.fill(textRankSummary),sep="\n")
+    #scores = scorer.score(humanSummary, lsaSummary)
+    #print(scores)
+
 if __name__=="__main__":
     main()
