@@ -1,3 +1,4 @@
+from pyrfc3339 import generate
 import sumy.summarizers.text_rank as TextRankSummarizer
 import sumy.summarizers.lsa       as LsaSummarizer
 import sumy.parsers.plaintext     as PlaintTextParser
@@ -40,18 +41,30 @@ def main():
     docs  = entry["article"]
     humanSummaries = entry["highlights"]
 
+    columns = ["Original Text", "Human summary"]
     for summarizer in SUMMARIZERS:
-        for doc in docs:
-            makeSummary(doc, summarizer, language)
+        summarizer_name = type(summarizer).__name__
+        columns.append(summarizer_name)
+        columns.append(type(summarizer).__name__ + "Rouge precition")
+        columns.append(type(summarizer).__name__ + "Rouge recall")
+
+    generated_summaries = pd.DataFrame(index=range(30), columns=columns)
+    scorer = rouge_scorer.RougeScorer(['rouge1', 'rougeL'])
+
+    for i, doc in enumerate(docs):
+        hummanSummary = humanSummaries.iloc[i]
+        new_data_row = [doc, hummanSummary]
+        for summarizer in SUMMARIZERS:
+            generated_summary = makeSummary(doc, summarizer, language)
+            scores = scorer.score(hummanSummary, generated_summary)
+            new_data_row.append(generated_summary)
+            new_data_row.append(scores[0])
+            new_data_row.append(scores[1])
+        
+        generated_summaries.iloc[i] = new_data_row
+
     
-    #Rouge
-    #scorer = rouge_scorer.RougeScorer(['rouge1', 'rougeL'])
-
-    #scores = scorer.score(humanSummary, textRankSummary)
-    #print(scores)
-
-    #scores = scorer.score(humanSummary, lsaSummary)
-    #print(scores)
+    print(generated_summaries)
 
 if __name__=="__main__":
     main()
