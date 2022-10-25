@@ -1,25 +1,49 @@
+library("dplyr")
+
 NOMBRE_ARCHIVO_espanol = "./datos_salida/Resumenes_generados_espanol.csv"
 NOMBRE_ARCHIVO_ingles  = "./datos_salida/Resumenes_generados_ingles.csv"
 
-datos = read.csv(NOMBRE_ARCHIVO_espanol)
+datos_espanol <- read.csv(NOMBRE_ARCHIVO_espanol, row.names=1, dec=",") %>% 
+  select(-Texto.original, -Resumen.humano)
+datos_ingles  <- read.csv(NOMBRE_ARCHIVO_ingles,  row.names=1, dec=",") %>% 
+  select(-Texto.original, -Resumen.humano)
 
-datos$TextRankSummarizer.rouge2.precision <- as.numeric(sub(",",".",datos$TextRankSummarizer.rouge2.precision))
-datos$TextRankSummarizer.rouge2.exhautividad <- as.numeric(sub(",",".",datos$TextRankSummarizer.rouge2.exhautividad))
-datos$TextRankSummarizer.rougeL.precision <- as.numeric(sub(",",".",datos$TextRankSummarizer.rougeL.precision))
-datos$TextRankSummarizer.rougeL.exhautividad <- as.numeric(sub(",",".",datos$TextRankSummarizer.rougeL.exhautividad))
+Rendimiento_resumidores <- data.frame(rouge2.precision     = double(),
+                  rouge2.exhaustividad = double(),
+                  rougeL.precision     = double(),
+                  rougeL.exhaustividad = double(),
+                  Resumidor = character(),
+                  Idioma    = character(),
+                  stringsAsFactors=FALSE)
+i = 1
+idiomas = c("Español","Ingles")
 
-datos$LsaSummarizer.rouge2.precision <- as.numeric(sub(",",".",datos$LsaSummarizer.rouge2.precision))
-datos$LsaSummarizer.rouge2.exhautividad <- as.numeric(sub(",",".",datos$LsaSummarizer.rouge2.exhautividad))
-datos$LsaSummarizer.rougeL.precision <- as.numeric(sub(",",".",datos$LsaSummarizer.rougeL.precision))
-datos$LsaSummarizer.rougeL.exhautividad <- as.numeric(sub(",",".",datos$LsaSummarizer.rougeL.exhautividad))
+for( datos in list(datos_espanol, datos_ingles)) {
+  TextRank_temp = datos             %>% 
+    select(starts_with("TextRank")) %>% 
+    select(-TextRankSummarizer)     %>%
+    mutate(Resumidor = "TextRank")  %>%
+    rename(rouge2.precision = TextRankSummarizer.rouge2.precision) %>%
+    rename(rouge2.exhaustividad = TextRankSummarizer.rouge2.exhautividad) %>%
+    rename(rougeL.precision = TextRankSummarizer.rougeL.precision) %>%
+    rename(rougeL.exhaustividad = TextRankSummarizer.rougeL.exhautividad)
+  
+  Lsa_temp = datos             %>% 
+    select(starts_with("Lsa")) %>% 
+    select(-LsaSummarizer)     %>%
+    mutate(Resumidor = "Lsa")  %>%
+    rename(rouge2.precision = LsaSummarizer.rouge2.precision) %>%
+    rename(rouge2.exhaustividad = LsaSummarizer.rouge2.exhautividad) %>%
+    rename(rougeL.precision = LsaSummarizer.rougeL.precision) %>%
+    rename(rougeL.exhaustividad = LsaSummarizer.rougeL.exhautividad)
+  
+  Rendimiento_temp = bind_rows(TextRank_temp, Lsa_temp) %>% 
+    mutate(Idioma = idiomas[i])
+
+  Rendimiento_resumidores = bind_rows(Rendimiento_resumidores, Rendimiento_temp)
+  i = i + 1
+}
+
+summary(Rendimiento_resumidores %>% select_if(is.numeric))
 
 
-mean(datos$TextRankSummarizer.rouge2.precision)
-mean(datos$TextRankSummarizer.rouge2.exhautividad)
-mean(datos$TextRankSummarizer.rougeL.precision)
-mean(datos$TextRankSummarizer.rougeL.exhautividad)
-
-mean(datos$LsaSummarizer.rouge2.precision)
-mean(datos$LsaSummarizer.rouge2.exhautividad)
-mean(datos$LsaSummarizer.rougeL.precision)
-mean(datos$LsaSummarizer.rougeL.exhautividad)
