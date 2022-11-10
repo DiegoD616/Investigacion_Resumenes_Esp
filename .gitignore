@@ -1,6 +1,7 @@
 #Extra R files
 .RData
 .Rhistory
+plots/
 
 # debuging files
 salida.txt
