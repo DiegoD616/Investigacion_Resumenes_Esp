@@ -1,5 +1,7 @@
-library("dplyr")
 library("ggplot2")
+library("biotools")
+library("rstatix")
+library("dplyr")
 
 NOMBRE_ARCHIVO_espanol = "./datos_salida/Resumenes_generados_espanol.csv"
 NOMBRE_ARCHIVO_ingles  = "./datos_salida/Resumenes_generados_ingles.csv"
@@ -25,7 +27,7 @@ idiomas = c("Español","Ingles")
 for( datos in list(datos_espanol, datos_ingles)) {
   TextRank_temp = datos             %>% 
     select(starts_with("TextRank")) %>% 
-    select(-TextRankSummarizer)     %>%
+    rename(Resumen=TextRankSummarizer)     %>%
     mutate(Resumidor = "TextRank")  %>%
     rename(rouge2.precision = TextRankSummarizer.rouge2.precision) %>%
     rename(rouge2.exhaustividad = TextRankSummarizer.rouge2.exhautividad) %>%
@@ -34,7 +36,7 @@ for( datos in list(datos_espanol, datos_ingles)) {
   
   Lsa_temp = datos             %>% 
     select(starts_with("Lsa")) %>% 
-    select(-LsaSummarizer)     %>%
+    rename(Resumen = LsaSummarizer)     %>%
     mutate(Resumidor = "Lsa")  %>%
     rename(rouge2.precision = LsaSummarizer.rouge2.precision) %>%
     rename(rouge2.exhaustividad = LsaSummarizer.rouge2.exhautividad) %>%
@@ -59,20 +61,64 @@ res.man <- manova(
         rougeL.precision, rougeL.exhaustividad) ~ Idioma * Resumidor, 
   data = Rendimiento_resumidores)
 summary(res.man)
+boxM( 
+  Rendimiento_resumidores[,c(1,2,3,4)],
+  Rendimiento_resumidores[,c(5)]
+)
 
 two.way <- aov(rouge2.precision ~ Idioma * Resumidor,     data = Rendimiento_resumidores)
 summary(two.way)
+plot(two.way)
+shapiro.test(Rendimiento_resumidores$rouge2.precision)
+fligner.test(
+  rouge2.precision ~ interaction(Idioma, Resumidor),
+  data = Rendimiento_resumidores
+)
+welch_anova_test(
+  Rendimiento_resumidores, 
+  rouge2.precision ~ interaction(Idioma, Resumidor)
+)
 
 two.way <- aov(rougeL.precision ~ Idioma * Resumidor,     data = Rendimiento_resumidores)
 summary(two.way)
+plot(two.way)
+shapiro.test(Rendimiento_resumidores$rougeL.precision)
+fligner.test(
+  rougeL.precision ~ interaction(Idioma, Resumidor), 
+  data = Rendimiento_resumidores
+)
+welch_anova_test(
+  Rendimiento_resumidores, 
+  rougeL.precision ~ interaction(Idioma, Resumidor)
+)
 
 ###### Diferencias en la exhausistividad R2
-two.way <- aov(rouge2.exhaustividad ~ Idioma + Resumidor, data = Rendimiento_resumidores)
+two.way <- aov(
+  rouge2.exhaustividad ~ Idioma + Resumidor, 
+  data = Rendimiento_resumidores
+)
 par(mfrow=c(2,2))
 summary(two.way)
 plot(two.way)
 
+fligner.test(
+  rouge2.exhaustividad ~ interaction(Idioma, Resumidor), 
+  data = Rendimiento_resumidores
+)
 
+welch_anova_test(
+  Rendimiento_resumidores, 
+  rouge2.exhaustividad ~ interaction(Idioma, Resumidor)
+)
+
+games_howell_test(
+  Rendimiento_resumidores %>%
+    mutate(Idioma_Resumidor = paste(Idioma,Resumidor), sep=":"),
+  formula = rouge2.exhaustividad ~ Idioma_Resumidor
+)
+
+
+# Gráficos
 two.way <- aov(rouge2.exhaustividad ~ Idioma:Resumidor, data = coded)
 par(mfrow=c(1,1))
 tukey.two.way <- TukeyHSD(two.way)
@@ -104,13 +150,32 @@ R2.Exhaustividad.plot <- ggplot(
 R2.Exhaustividad.plot
 
 
-
 ###### Diferencias en la exhausistividad RL
-two.way <- aov(rougeL.exhaustividad ~ Idioma + Resumidor, data = Rendimiento_resumidores)
+two.way <- aov(
+  rougeL.exhaustividad ~ Idioma + Resumidor, 
+  data = Rendimiento_resumidores
+)
 par(mfrow=c(2,2))
 summary(two.way)
 plot(two.way)
 
+fligner.test(
+  rougeL.exhaustividad ~ interaction(Idioma, Resumidor), 
+  data = Rendimiento_resumidores
+)
+
+welch_anova_test(
+  Rendimiento_resumidores, 
+  rougeL.exhaustividad ~ interaction(Idioma, Resumidor)
+)
+
+games_howell_test(
+  Rendimiento_resumidores %>%
+    mutate(Idioma_Resumidor = paste(Idioma,Resumidor, sep = "-")),
+  formula = rougeL.exhaustividad ~ Idioma_Resumidor
+)
+
+#Gráficos
 two.way <- aov(rougeL.exhaustividad ~ Idioma:Resumidor, data = coded)
 tukey.two.way<-TukeyHSD(two.way)
 par(mfrow=c(1,1))
@@ -140,3 +205,32 @@ RL.Exhaustividad.plot <- ggplot(
   theme_linedraw() +
   labs(title = "", x = "Idioma", y = "Exhaustividad de RougeL")
 RL.Exhaustividad.plot
+
+
+# Promedios xD
+promedios = Rendimiento_resumidores %>%
+  group_by(Resumidor, Idioma) %>%
+  summarise(
+    rougeL.exhaustividad = mean(rougeL.exhaustividad)*100,
+    rougeL.precision = mean(rougeL.precision)*100,
+    rouge2.exhaustividad = mean(rouge2.exhaustividad)*100,
+    rouge2.precision = mean(rouge2.precision)*100,
+  )
+
+par(mfrow=c(2,2))
+ggplot(data=promedios, aes(x=Resumidor, y=rougeL.exhaustividad, fill=Idioma)) +
+  theme_linedraw() +
+  geom_bar(stat="identity", position=position_dodge())
+
+ggplot(data=promedios, aes(x=Resumidor, y=rouge2.exhaustividad, fill=Idioma)) +
+  theme_linedraw() +
+  geom_bar(stat="identity", position=position_dodge())
+
+ggplot(data=promedios, aes(x=Resumidor, y=rougeL.precision, fill=Idioma)) + 
+  theme_linedraw() +
+  geom_bar(stat="identity", position=position_dodge())
+
+ggplot(data=promedios, aes(x=Resumidor, y=rouge2.precision, fill=Idioma)) +
+  theme_linedraw() +
+  geom_bar(stat="identity", position=position_dodge())
+
